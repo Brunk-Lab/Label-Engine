@@ -161,7 +161,7 @@ class ecDNADataset(Dataset):
         reordered_seg.CopyInformation(seg)
         seg = reordered_seg
 
-        if self.mode == 'train':
+        if self.split == 'train':
             # sampling a crop center
             if self.sampling_method == 'CENTER':
                 center = self.center_sample(seg)
@@ -203,7 +203,7 @@ class ecDNADataset(Dataset):
                 for idx in range(len(images)):
                     images[idx] = sitk.Flip(images[idx], [False, do_flip], True)
 
-        elif self.mode == 'val':
+        elif self.split == 'val':
             for idx in range(len(images)):
                 images[idx] = resample_spacing(images[idx], self.spacing, 16, self.interpolation)
                 images[idx] = self.crop_normalizers[idx](images[idx])

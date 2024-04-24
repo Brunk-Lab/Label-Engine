@@ -3,9 +3,10 @@ import math
 from opencount.core.utils.log import logger
 
 
-def get_optimizer(model, opt_name, opt_kwargs):
+def get_optimizer(model, optimizer_params):
     params = []
-    base_lr = opt_kwargs['lr']
+    opt_name = optimizer_params['name']
+    base_lr = optimizer_params['lr']
     for name, param in model.named_parameters():
         param_group = {'params': [param]}
         if not param.requires_grad:
@@ -18,10 +19,12 @@ def get_optimizer(model, opt_name, opt_kwargs):
 
         params.append(param_group)
 
+    betas = optimizer_params['betas']
+    eps = optimizer_params['eps']
     optimizer = {
         'sgd': torch.optim.SGD,
         'adam': torch.optim.Adam,
         'adamw': torch.optim.AdamW
-    }[opt_name.lower()](params, **opt_kwargs)
+    }[opt_name.lower()](params, lr=base_lr, betas=betas, eps=eps)
 
     return optimizer

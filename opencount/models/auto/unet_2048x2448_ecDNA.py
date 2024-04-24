@@ -19,12 +19,7 @@ def build_model(img_size: Tuple[int, int]) -> UNet:
 
 
 def train(model: UNet, cfg: Dict) -> None:
-    loss_cfg = edict()
 
-    # initialize the model
-    model.to(cfg.device)
-
-    cfg.loss_cfg = loss_cfg
 
     trainset = ecDNADataset(
         imlist_file='/playpen-raid2/qinliu/data/ecDNA/datasets/train_0422_2024.txt',
@@ -41,20 +36,17 @@ def train(model: UNet, cfg: Dict) -> None:
         split='train'
     )
 
-    valset = None
-
-    optimizer_params = {'lr': 5e-5, 'betas': (0.9, 0.999), 'eps': 1e-8}
-    lr_scheduler = partial(
-        torch.optim.lr_scheduler.MultiStepLR, milestones=[50, 90], gamma=0.1
-    )
+    loss_func_params = {'name': 'Focal', 'alpha': (0.5, 0.5), 'class_num': 2}
+    optimizer_params = {'name': 'adam', 'lr': 5e-5, 'betas': (0.9, 0.999), 'eps': 1e-8}
+    scheduler_params = {'name': 'MultiStepLR', 'milestones': [50, 90], 'gamma': 0.1}
 
     trainer = AutoTrainer(
         model,
         cfg,
         trainset,
-        valset,
-        optimizer='adam',
+        valset=None,
+        loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
-        lr_scheduler=lr_scheduler
+        scheduler_params=scheduler_params,
     )
     trainer.run(num_epochs=500, validation=False)

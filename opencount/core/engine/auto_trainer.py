@@ -3,11 +3,14 @@ import logging
 import torch
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict
+from tqdm import tqdm
 
 from opencount.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
 from opencount.core.model.auto_model import autoCountModel
-from opencount.core.engine.optimizer import get_optimizer
+from opencount.core.utils.optimizer import get_optimizer
+from opencount.core.utils.scheduler import get_scheduler
 from opencount.core.utils.distributed import get_dp_wrapper
+from opencount.core.loss.focal_loss import FocalLoss
 
 
 class AutoTrainer(object):
@@ -17,9 +20,9 @@ class AutoTrainer(object):
             cfg: Dict,
             trainset,
             valset,
-            optimizer: str='adam',
-            optimizer_params=None,
-            lr_scheduler=None,
+            loss_func_params: Dict,
+            optimizer_params: Dict,
+            scheduler_params: Dict,
     ) -> None:
         self.cfg = cfg
         self.is_master = self.cfg.local_rank == 0
@@ -29,26 +32,40 @@ class AutoTrainer(object):
             cfg.batch_size,
         )
 
-        self.optim = get_optimizer(model, optimizer, optimizer_params)
-        model = load_weights(model, self.cfg.weights)
-        if cfg.multi_gpu:
-            model = get_dp_wrapper()(model, device_ids=[cfg.gpu_ids[cfg.local_rank]],
-                                     find_unused_parameters=True)
-
         self.device = cfg.device
         self.model = model.to(self.device)
+
+        if cfg.multi_gpu:
+            self.model = get_dp_wrapper()(
+                self.model, 
+                device_ids=[cfg.gpu_ids[cfg.local_rank]],
+                find_unused_parameters=True
+            )
+
+        self.model = load_weights(self.model, self.cfg.weights)
+        self.optim = get_optimizer(self.model, optimizer_params)
+        self.sched = get_scheduler(self.optim, scheduler_params)
+        if cfg.start_epoch > 0:
+            for _ in range(cfg.start_epoch):
+                self.sched.step()
+
         self.lr = optimizer_params['lr']
-
-        if lr_scheduler is not None:
-            self.lr_scheduler = lr_scheduler(optimizer=self.optim)
-            if cfg.start_epoch > 0:
-                for _ in range(cfg.start_epoch):
-                    self.lr_scheduler.step()
-
         self.tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+        
+        if loss_func_params['name'] == 'Focal':
+            class_num = loss_func_params['class_num']
+            alpha = loss_func_params['alpha']
+            self.loss_func = FocalLoss(class_num, alpha, use_gpu=True)
 
     def training(self, epoch):
-        pass
+        self.model.train()
+
+        tbar = tqdm(self.train_data, file=self.tqdm_out, ncols=100) \
+            if self.is_master else self.train_data
+
+        train_loss = 0
+        for i, batch_data in enumerate(tbar):
+            global_step = epoch * len(self.train_data) + i
 
         if self.is_master:
             pass
@@ -67,12 +84,6 @@ class AutoTrainer(object):
                 self.validation(epoch)
 
     def validation(self, epoch):
-        pass
-
-    def batch_forward(self, batch_data, validation=False):
-        pass
-
-    def add_loss(self, loss_name):
         pass
 
 

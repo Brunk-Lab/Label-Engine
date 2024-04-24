@@ -1,7 +1,6 @@
 import torch
 from typing import Tuple, Dict
 from easydict import EasyDict as edict
-from functools import partial
 
 from opencount.core.data.ecDNA import ecDNADataset
 from opencount.core.model.auto_unet_model import UNet

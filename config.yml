@@ -1,5 +1,5 @@
 INTERACTIVE_MODELS_PATH: "./weights"
-EXPS_PATH: "./saves/model_0415_2024"
+EXPS_PATH: "./saves/model_0424_2024"
 
 # Evaluation datasets
 GRABCUT_PATH: "./data/GrabCut"
