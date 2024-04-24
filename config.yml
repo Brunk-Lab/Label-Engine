@@ -20,6 +20,7 @@ LVIS_v1_PATH: "./data/COCO_2017"
 OPENIMAGES_PATH: "./data/OpenImages"
 PASCALVOC_PATH: "./data/PascalVOC"
 ADE20K_PATH: "./data/ADE20k/ADEChallengeData2016"
+ECDNA_PATH: "./data/ecDNA"
 
 # You can download the weights for HRNet from the repository:
 # https://github.com/HRNet/HRNet-Image-Classification

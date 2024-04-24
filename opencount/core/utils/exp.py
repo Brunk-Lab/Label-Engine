@@ -4,7 +4,8 @@ import shutil
 import pprint
 from pathlib import Path
 from datetime import datetime
- 
+from typing import Dict
+
 import yaml
 import torch
 from easydict import EasyDict as edict
@@ -12,7 +13,7 @@ from easydict import EasyDict as edict
 from .log import logger, add_logging
 
 
-def init_experiment(args, model_name):
+def init_experiment(args, model_name) -> Dict:
     model_path = Path(args.model_path)
     ftree = get_model_family_tree(model_path, model_name=model_name)
 
