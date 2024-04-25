@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from opencount.core.model.auto_model import autoCountModel
+from opencount.core.utils.serialization import serialize
 
 
 def kaiming_weight_init(m, bn_std=0.02):
@@ -207,6 +208,7 @@ class OutputBlock(nn.Module):
 class UNet(autoCountModel):
   """ unet implementation """
 
+  @serialize
   def __init__(self, num_in_channels, num_out_channels):
     super().__init__(num_in_channels, num_out_channels)
     

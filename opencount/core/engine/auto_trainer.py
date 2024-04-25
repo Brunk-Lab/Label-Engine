@@ -24,6 +24,8 @@ class AutoTrainer(object):
             loss_func_params: Dict,
             optimizer_params: Dict,
             scheduler_params: Dict,
+            image_dump_interval: int,
+            checkpoint_interval: int,
     ) -> None:
         self.cfg = cfg
         self.is_master = self.cfg.local_rank == 0
@@ -59,6 +61,9 @@ class AutoTrainer(object):
             alpha = loss_func_params['alpha']
             self.loss_func = FocalLoss(class_num, alpha, use_gpu=True)
 
+        self.image_dump_interval = image_dump_interval
+        self.checkpoint_interval = checkpoint_interval
+
     def run(self, num_epochs, start_epoch=None, validation=False):
         if start_epoch is None:
             start_epoch = self.cfg.start_epoch
@@ -88,14 +93,32 @@ class AutoTrainer(object):
             loss.backward()
             self.optim.step()
 
-            dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+            # gather losses from all devices
+            with torch.no_grad():
+                dist.all_reduce(loss, op=dist.ReduceOp.SUM)
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                lr = self.sched.get_lr()[-1]
-                tbar.set_description(
-                    f'Epoch {epoch}, training loss {loss.item():.4f}, lr {lr:.4f}'
-                )
+                tbar.set_description(f'Epoch {epoch}, loss {loss.item():.4f}')
+
+                if self.image_dump_interval > 0 and \
+                    global_step % self.image_dump_interval == 0:
+                    self.save_visualization()
+
+        if self.is_master:
+            save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=-1, 
+                            multi_gpu=self.cfg.multi_gpu)
+
+            if isinstance(self.checkpoint_interval, (list, tuple)):
+                freq = [x for x in self.checkpoint_interval if x[0] <= epoch][-1][1]
+            else:
+                freq = self.checkpoint_interval
+
+            if epoch % freq == 0:
+                save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=epoch, 
+                                multi_gpu=self.cfg.multi_gpu)
+
+        self.sched.step()
 
     def validation(self, epoch):
         pass
@@ -121,6 +144,9 @@ class AutoTrainer(object):
 
         return train_loss
 
+    def save_visualization(self):
+        pass
+
 
 def load_weights(model: autoCountModel, weights_path: str) -> autoCountModel:
     if weights_path is not None:
@@ -133,3 +159,15 @@ def load_weights(model: autoCountModel, weights_path: str) -> autoCountModel:
             raise RuntimeError(f"=> no checkpoint found at '{weights_path}'")
 
     return model
+
+def save_checkpoint(model, chk_folder, epoch, verbose=False, multi_gpu=False):
+    chk_name = 'last_checkpoint.pth' if epoch < 0 else f'{epoch:03d}.pth'
+    if not chk_folder.exists():
+        chk_folder.mkdir(parents=True)
+    
+    chk_path = chk_folder / chk_name
+    if verbose:
+        logger.info(f'Save checkpoint to {str(chk_path)}')
+    
+    net = model.module if multi_gpu else model
+    torch.save({'state_dict': net.state_dict(), 'config': net._config}, str(chk_path))

@@ -48,5 +48,7 @@ def train(model: UNet, cfg: Dict) -> None:
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
+        image_dump_interval=1000,
+        checkpoint_interval=200,
     )
-    trainer.run(num_epochs=500, validation=False)
+    trainer.run(num_epochs=1001, validation=False)
