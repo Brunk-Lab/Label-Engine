@@ -1,6 +1,71 @@
+import numpy as np
 import SimpleITK as sitk
 
-from opencount.core.data.image_tools import normalize_image, get_mean_std_from_image
+
+def get_mean_std_from_image(image):
+    """ Get mean and standard deviation from the input image.
+    """
+    assert isinstance(image, sitk.Image)
+
+    image_npy = sitk.GetArrayFromImage(image)
+    return np.mean(image_npy), np.std(image_npy)
+
+
+def get_image_frame(image):
+    """
+    Get the frame of the given image. An image frame contains the origin, spacing, and direction of a image.
+
+    :parma image: a SimpleITK image
+    :return frame: the frame packed in a numpy array
+    """
+    assert isinstance(image, sitk.Image)
+
+    frame = []
+    frame.extend(list(image.GetSpacing()))
+    frame.extend(list(image.GetOrigin()))
+    frame.extend(list(image.GetDirection()))
+
+    return np.array(frame, dtype=np.float32)
+
+
+def set_image_frame(image, frame):
+    """
+    Set the frame of the SimpleITK image
+
+    :param image: the a new frame to the input image.
+    :param frame: the new frame of the image. It is a numpy array with 15 elements, with the first three elements
+                  representing the spacing, the next three elements representing the origin, and the rest representing
+                  the direction.
+    """
+    assert isinstance(image, sitk.Image)
+
+    spacing = frame[:2].astype(np.double)
+    origin = frame[2:4].astype(np.double)
+    direction = frame[4:8].astype(np.double)
+
+    image.SetSpacing(spacing)
+    image.SetOrigin(origin)
+    image.SetDirection(direction)
+
+
+def normalize_image(image, mean, std, clip, clip_min=-1.0, clip_max=1.0):
+    """
+    Normalize image by setting mean and standard deviation.
+    """
+    assert isinstance(image, sitk.Image)
+
+    image_npy = sitk.GetArrayFromImage(image)
+    image_npy = (image_npy - mean) / std
+
+    if clip:
+        image_npy[image_npy < clip_min] = clip_min
+        image_npy[image_npy > clip_max] = clip_max
+
+    normalized_image = sitk.GetImageFromArray(image_npy)
+    set_image_frame(normalized_image, get_image_frame(image))
+    normalized_image = sitk.Cast(normalized_image, image.GetPixelID())
+
+    return normalized_image
 
 
 class FixedNormalizer(object):

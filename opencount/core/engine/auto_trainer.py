@@ -26,15 +26,23 @@ class AutoTrainer(object):
             scheduler_params: Dict,
             image_dump_interval: int,
             checkpoint_interval: int,
+            validation_interval: int,
     ) -> None:
         self.cfg = cfg
         self.is_master = self.cfg.local_rank == 0
 
         self.train_data = DataLoader(
-            trainset, cfg.batch_size,
+            trainset, batch_size=cfg.batch_size,
             sampler=get_sampler(trainset, shuffle=True, distributed=True),
             num_workers=cfg.workers,
             drop_last=True, pin_memory=True
+        )
+
+        self.val_data = DataLoader(
+            valset, batch_size=1,
+            sampler=get_sampler(valset, shuffle=False, distributed=True),
+            drop_last=False, pin_memory=True,
+            num_workers=1
         )
 
         self.device = cfg.device
@@ -63,6 +71,7 @@ class AutoTrainer(object):
 
         self.image_dump_interval = image_dump_interval
         self.checkpoint_interval = checkpoint_interval
+        self.validation_interval = validation_interval
 
     def run(self, num_epochs, start_epoch=None, validation=False):
         if start_epoch is None:
@@ -74,7 +83,7 @@ class AutoTrainer(object):
 
         for epoch in range(start_epoch, num_epochs):
             self.training(epoch)
-            if validation:
+            if validation and epoch % self.validation_interval == 0:
                 self.validation(epoch)
 
     def training(self, epoch):
@@ -115,7 +124,7 @@ class AutoTrainer(object):
                 freq = self.checkpoint_interval
 
             if epoch % freq == 0:
-                save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=epoch, 
+                save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=epoch,
                                 multi_gpu=self.cfg.multi_gpu)
 
         self.sched.step()
@@ -126,7 +135,7 @@ class AutoTrainer(object):
     def batch_forward(self, batch_data, validation=False):
 
         with torch.set_grad_enabled(not validation):
-            crops, masks, frames, filenames = batch_data
+            crops, masks, info = batch_data
             crops, masks = crops.to(self.device), masks.to(self.device)
 
             outputs = self.model(crops)

@@ -20,35 +20,42 @@ def build_model(img_size: Tuple[int, int]) -> UNet:
 
 def train(model: UNet, cfg: Dict) -> None:
 
+    augmentation_params = {
+        'random_translation': [10, 10],
+        'random_scale': [0.8, 1.2],
+        'random_hori_flip': True,
+        'random_vert_flip': True
+    }
 
     trainset = ecDNADataset(
-        imlist_file='/playpen-raid2/qinliu/data/ecDNA/datasets/train_0422_2024.txt',
-        labels={'foreground': 255},
-        spacing=[1.0, 1.0],
+        dataset_path=cfg.ECDNA_PATH,
+        split='train',
         crop_size=(2048, 2448),
-        sampling_method='CENTER',
-        random_translation=[10, 10],
-        random_scale=[0.8, 1.2],
-        random_hori_flip=True,
-        random_vert_flip=True,
-        interpolation='LINEAR',
-        crop_normalizers=[AdaptiveNormalizer(clip_sigma=5)],
-        split='train'
+        normalizer=AdaptiveNormalizer(clip_sigma=5),
+        augmentation_params=augmentation_params,
+    )
+
+    valset = ecDNADataset(
+        dataset_path=cfg.ECDNA_PATH,
+        split='val',
+        crop_size=(2048, 2448),
+        normalizer=AdaptiveNormalizer(clip_sigma=5)
     )
 
     loss_func_params = {'name': 'Focal', 'alpha': (0.5, 0.5), 'class_num': 2}
     optimizer_params = {'name': 'adam', 'lr': 5e-5, 'betas': (0.9, 0.999), 'eps': 1e-8}
-    scheduler_params = {'name': 'MultiStepLR', 'milestones': [50, 90], 'gamma': 0.1}
+    scheduler_params = {'name': 'MultiStepLR', 'milestones': [500, 800], 'gamma': 0.2}
 
     trainer = AutoTrainer(
         model,
         cfg,
         trainset,
-        valset=None,
+        valset,
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
         image_dump_interval=1000,
         checkpoint_interval=200,
+        validation_interval=200,
     )
-    trainer.run(num_epochs=1001, validation=False)
+    trainer.run(num_epochs=1001, validation=True)

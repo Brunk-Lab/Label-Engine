@@ -3,6 +3,6 @@ torchrun --nproc-per-node=4 \
 	     --master-port 29504 \
 	     ./opencount/train.py ${MODEL_CONFIG} \
 		 --workers=4 \
-	     --batch-size=4 \
+	     --batch-size=2 \
 	     --gpus=0,1,2,3 \
 		 --weights /playpen-raid2/qinliu/models/model_0422_2024/coarse/checkpoints/chk_500/params.pth
