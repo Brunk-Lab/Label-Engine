@@ -41,8 +41,8 @@ class AutoTrainer(object):
         self.val_data = DataLoader(
             valset, batch_size=1,
             sampler=get_sampler(valset, shuffle=False, distributed=True),
+            num_workers=1,
             drop_last=False, pin_memory=True,
-            num_workers=1
         )
 
         self.device = cfg.device
@@ -90,25 +90,21 @@ class AutoTrainer(object):
         self.model.train()
 
         self.train_data.sampler.set_epoch(epoch)
-        tbar = tqdm(self.train_data, file=self.tqdm_out, ncols=100) \
-            if self.is_master else self.train_data
-
-        for i, batch_data in enumerate(tbar):
+        for i, batch_data in enumerate(self.train_data):
             global_step = epoch * len(self.train_data) + i
 
-            loss = self.batch_forward(batch_data)
+            loss, outputs = self.batch_forward(batch_data, validation=False)
 
             self.optim.zero_grad()
             loss.backward()
             self.optim.step()
 
             # gather losses from all devices
-            with torch.no_grad():
-                dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+            dist.all_reduce(loss, op=dist.ReduceOp.SUM)
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                tbar.set_description(f'Epoch {epoch}, loss {loss.item():.4f}')
+                logger.info(f'Epoch {epoch}, batch {i}, train_loss {loss.item():.4f}')
 
                 if self.image_dump_interval > 0 and \
                     global_step % self.image_dump_interval == 0:
@@ -130,7 +126,17 @@ class AutoTrainer(object):
         self.sched.step()
 
     def validation(self, epoch):
-        pass
+        self.model.eval()
+        for i, batch_data in enumerate(self.val_data):
+            loss, outputs = self.batch_forward(batch_data, validation=True)
+
+            # gather losses from all devices
+            dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+
+            if self.is_master:
+                loss /= dist.get_world_size()
+                logger.info(f'Epoch {epoch}, batch {i}, val_loss {loss.item():.4f}')
+
 
     def batch_forward(self, batch_data, validation=False):
 
@@ -139,19 +145,20 @@ class AutoTrainer(object):
             crops, masks = crops.to(self.device), masks.to(self.device)
 
             outputs = self.model(crops)
-            outputs = outputs.permute(0, 2, 3, 1).contiguous()
-            outputs = outputs.view(-1, outputs.shape[-1])
+            
+            preds = outputs.permute(0, 2, 3, 1).contiguous()
+            preds = preds.view(-1, preds.shape[-1])
 
             masks = masks.permute(0, 2, 3, 1).contiguous()
             masks = masks.view(-1, masks.shape[-1])
 
             selected_sample_indices = torch.nonzero(masks[:, 0] >= 0).squeeze()
             masks = torch.index_select(masks, 0, selected_sample_indices)
-            outputs = torch.index_select(outputs, 0, selected_sample_indices)
+            preds = torch.index_select(preds, 0, selected_sample_indices)
 
-            train_loss = self.loss_func(outputs, masks)
+            train_loss = self.loss_func(preds, masks)
 
-        return train_loss
+        return train_loss, outputs
 
     def save_visualization(self):
         pass
