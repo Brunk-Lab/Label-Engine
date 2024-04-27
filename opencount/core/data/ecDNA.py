@@ -120,7 +120,8 @@ class ecDNADataset(Dataset):
         dataset_path = Path(dataset_path)
         self.images_path = dataset_path / 'images'
         self.masks_path = dataset_path / 'masks'
-    
+        self.coords_path = dataset_path / 'coords'
+
         self.split = split
         if split == 'train':
             imlist_file = dataset_path / 'datasets' / 'train_0422_2024.txt'
@@ -132,14 +133,17 @@ class ecDNADataset(Dataset):
         self.im_name_list = []
         self.im_path_list = []
         self.im_mask_list = []
+        self.im_coords_list = []
         f = open(imlist_file, 'r')
         for line in f:
             im_name = line.split('.')[0]
             im_path = str(self.images_path / line.strip())
             mask_path = str(self.masks_path / line.strip())
+            coords_path = str(self.coords_path / f'{im_name}.npy')
             self.im_name_list.append(im_name)
             self.im_path_list.append(im_path)
             self.im_mask_list.append(mask_path)
+            self.im_coords_list.append(coords_path)
 
         self.spacing = np.array([1.0, 1.0])
         self.crop_size = np.array(crop_size, dtype=np.int32)
@@ -167,7 +171,8 @@ class ecDNADataset(Dataset):
         end_point_voxel = [int(image.GetSize()[idx] - 1) for idx in range(2)]
         end_point_world = image.TransformIndexToPhysicalPoint(end_point_voxel)
 
-        center = np.array([(origin[idx] + end_point_world[idx]) / 2.0 for idx in range(2)], dtype=np.double)
+        center = np.array([(origin[idx] + end_point_world[idx]) / 2.0 \
+                           for idx in range(2)], dtype=np.double)
         return center
 
     def __getitem__(self, index):
@@ -175,12 +180,15 @@ class ecDNADataset(Dataset):
         :param index:  the sample index
         :return cropped image, cropped mask, crop frame, case name
         """
-        image_name, image_path, mask_path = \
-            self.im_name_list[index], self.im_path_list[index], self.im_mask_list[index]
+        image_name = self.im_name_list[index]
+        image_path = self.im_path_list[index]
+        mask_path = self.im_mask_list[index]
+        coords_path = self.im_coords_list[index]
 
         # image IO
         image = read_picture(image_path, np.float32)
         mask = read_picture(mask_path, np.float32)
+        num_coords = len(np.load(coords_path))
 
         # foreground: 255, background: 0, invalid: other values
         mask_npy = sitk.GetArrayFromImage(mask)
@@ -222,6 +230,6 @@ class ecDNADataset(Dataset):
         # convert to tensors
         image = convert_image_to_tensor(image)
         mask = convert_image_to_tensor(mask)
-        image_info = {'name': image_name}
+        info = {'name': image_name, 'num_coords': num_coords}
 
-        return image, mask, image_info
+        return image, mask, info

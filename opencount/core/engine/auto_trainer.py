@@ -1,16 +1,21 @@
+from datetime import datetime
+import json
 import os
 import logging
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict
-from tqdm import tqdm
 from torch import distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from opencount.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
 from opencount.core.model.auto_model import autoCountModel
 from opencount.core.utils.optimizer import get_optimizer
 from opencount.core.utils.scheduler import get_scheduler
-from opencount.core.utils.distributed import get_dp_wrapper, get_sampler
+from opencount.core.utils.distributed import get_sampler
+from opencount.core.utils.simpleitk import convert_tensor_to_image, \
+    get_num_connected_component
 from opencount.core.loss.focal_loss import FocalLoss
 
 
@@ -49,11 +54,7 @@ class AutoTrainer(object):
         self.model = model.to(self.device)
 
         if cfg.multi_gpu:
-            self.model = get_dp_wrapper()(
-                self.model, 
-                device_ids=[cfg.gpu_ids[cfg.local_rank]],
-                find_unused_parameters=False
-            )
+            self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]])
 
         self.model = load_weights(self.model, self.cfg.weights)
         self.optim = get_optimizer(self.model, optimizer_params)
@@ -93,7 +94,7 @@ class AutoTrainer(object):
         for i, batch_data in enumerate(self.train_data):
             global_step = epoch * len(self.train_data) + i
 
-            loss, outputs = self.batch_forward(batch_data, validation=False)
+            loss, outputs, info = self.batch_forward(batch_data, validation=False)
 
             self.optim.zero_grad()
             loss.backward()
@@ -126,16 +127,42 @@ class AutoTrainer(object):
         self.sched.step()
 
     def validation(self, epoch):
+        val_metrics = {}
         self.model.eval()
         for i, batch_data in enumerate(self.val_data):
-            loss, outputs = self.batch_forward(batch_data, validation=True)
+            loss, outputs, info = self.batch_forward(batch_data, validation=True)
 
-            # gather losses from all devices
+            # gather data from all devices
             dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+
+            gathered_outputs = [None for _ in range(self.cfg.world_size)]
+            gathered_info = [None for _ in range(self.cfg.world_size)]
+            dist.all_gather_object(gathered_outputs, outputs)
+            dist.all_gather_object(gathered_info, info)
 
             if self.is_master:
                 loss /= dist.get_world_size()
                 logger.info(f'Epoch {epoch}, batch {i}, val_loss {loss.item():.4f}')
+
+                # save validation results
+                metrics = self.get_validation_metrics(gathered_outputs, gathered_info)
+                val_metrics.update(metrics)
+
+        if self.is_master:
+            num_normal_cases = 0
+            metrics_sum = 0.
+            for key in val_metrics.keys():
+                if val_metrics[key][0] <= 1.:
+                    num_normal_cases += 1
+                    metrics_sum += val_metrics[key][0]
+
+            now = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+            with open(f'{self.cfg.VIS_PATH}/val_epoch_{epoch}_{now}.json', 'w') as fp:
+                json.dump(val_metrics, fp)
+
+            report_msg = f'Report: normal/total: {num_normal_cases}/{len(val_metrics)}, \
+                metric: {metrics_sum / (max(1, num_normal_cases)):.4f}'
+            logger.info(report_msg)
 
 
     def batch_forward(self, batch_data, validation=False):
@@ -158,7 +185,24 @@ class AutoTrainer(object):
 
             train_loss = self.loss_func(preds, masks)
 
-        return train_loss, outputs
+        return train_loss, outputs, info
+
+    def get_validation_metrics(self, gathered_outputs, gathered_info):
+        metrics = {}
+        for i in range(len(gathered_outputs)):
+            image_name_list = gathered_info[i]['name']
+            num_coords_list = gathered_info[i]['num_coords']
+
+            for j in range(len(image_name_list)):
+                image_prob = gathered_outputs[i][j][1].data
+                image_prob = convert_tensor_to_image(image_prob, dtype=np.float)
+
+                coords_pred = int(get_num_connected_component(image_prob > 0.4, 1))
+                coords_gt = int(num_coords_list[j].numpy())
+                metric = coords_pred / coords_gt
+                metrics[image_name_list[j]] = [metric, coords_pred, coords_gt]
+
+        return metrics
 
     def save_visualization(self):
         pass
@@ -175,6 +219,7 @@ def load_weights(model: autoCountModel, weights_path: str) -> autoCountModel:
             raise RuntimeError(f"=> no checkpoint found at '{weights_path}'")
 
     return model
+
 
 def save_checkpoint(model, chk_folder, epoch, verbose=False, multi_gpu=False):
     chk_name = 'last_checkpoint.pth' if epoch < 0 else f'{epoch:03d}.pth'

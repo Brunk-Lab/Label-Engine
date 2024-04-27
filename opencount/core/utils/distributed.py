@@ -55,13 +55,3 @@ def get_sampler(dataset, shuffle, distributed):
         return data.RandomSampler(dataset)
     else:
         return data.SequentialSampler(dataset)
-
-
-def get_dp_wrapper():
-    class DPWrapper(torch.nn.parallel.DistributedDataParallel):
-        def __getattr__(self, name):
-            try:
-                return super().__getattr__(name)
-            except AttributeError:
-                return getattr(self.module, name)
-    return DPWrapper
