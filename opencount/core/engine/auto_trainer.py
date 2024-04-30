@@ -10,7 +10,7 @@ from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from opencount.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
-from opencount.core.model.auto_model import autoCountModel
+from opencount.core.model.auto_base_model import autoCountModel
 from opencount.core.utils.optimizer import get_optimizer
 from opencount.core.utils.scheduler import get_scheduler
 from opencount.core.utils.distributed import get_sampler
