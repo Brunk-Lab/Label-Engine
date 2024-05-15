@@ -10,7 +10,7 @@ from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from opencount.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
-from projects.OpenCount.opencount.core.model.icount_base_model import iCountModel
+from opencount.core.model.icount_base_model import iCountModel
 from opencount.core.utils.optimizer import get_optimizer
 from opencount.core.utils.scheduler import get_scheduler
 from opencount.core.utils.distributed import get_sampler
@@ -168,11 +168,14 @@ class ICTrainer(object):
     def batch_forward(self, batch_data, validation=False):
 
         with torch.set_grad_enabled(not validation):
-            crops, masks, info = batch_data
+            info = batch_data['info']
+            points = batch_data['points']
+            crops, masks = batch_data['images']
+ 
             crops, masks = crops.to(self.device), masks.to(self.device)
 
-            visual_prompts = None
             text_prompt = None
+            visual_prompts = {'points': points}
             outputs = self.model(crops, visual_prompts, text_prompt)
             
             preds = outputs.permute(0, 2, 3, 1).contiguous()

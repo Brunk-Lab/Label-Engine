@@ -1,7 +1,7 @@
 import os
 import gdown
 
-# download models
+# download datasets
 save_folder ='data'
 os.makedirs(f'{save_folder}/train', exist_ok=True)
 os.makedirs(f'{save_folder}/val', exist_ok=True)

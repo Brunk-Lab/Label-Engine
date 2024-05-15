@@ -109,13 +109,10 @@ class ecDNADataset(Dataset):
         normalizer=None, 
     ):
         """ constructor
-        :param imlist_file: image-segmentation list file
-        :param spacing: the resolution, e.g., [1, 1, 1]
-        :param crop_size: crop size, e.g., [96, 96, 96]
-        :param sampling_method: 'GLOBAL', 'MASK'
-        :param random_translation: random translation
-        :param interpolation: 'LINEAR' for linear interpolation, 'NN' for nearest neighbor
-        :param crop_normalizers: used to normalize the image crops, one for one image modality
+        :param dataset_path: the folder contains datasets
+        :param crop_size: crop size, e.g., [2048, 2448]
+        :param augmentation_params: a dictionary containing augmentation parameters
+        :param normalizers: used to normalize the image crops, one for one image modality
         """
         dataset_path = Path(dataset_path)
         self.images_path = dataset_path / 'images'
