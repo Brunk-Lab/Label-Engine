@@ -6,8 +6,8 @@ import tkinter as tk
 
 import torch
 
-from opencount.core.utils import exp
-from opencount.interactive_demo.app import InteractiveDemoApp
+from engine.core.utils import exp
+from engine.interactive_demo.app import InteractiveDemoApp
 
 def main():
     args, cfg = parse_args()

@@ -9,14 +9,14 @@ from typing import Tuple, Dict
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from opencount.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
-from opencount.core.model.icount_base_model import iCountModel
-from opencount.core.utils.optimizer import get_optimizer
-from opencount.core.utils.scheduler import get_scheduler
-from opencount.core.utils.distributed import get_sampler
-from opencount.core.utils.simpleitk import convert_tensor_to_image, \
+from engine.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
+from engine.core.model.icount_base_model import iCountModel
+from engine.core.utils.optimizer import get_optimizer
+from engine.core.utils.scheduler import get_scheduler
+from engine.core.utils.distributed import get_sampler
+from engine.core.utils.simpleitk import convert_tensor_to_image, \
     get_num_connected_component
-from opencount.core.loss.focal_loss import FocalLoss
+from engine.core.loss.focal_loss import FocalLoss
 
 
 class ICTrainer(object):

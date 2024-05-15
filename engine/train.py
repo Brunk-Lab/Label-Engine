@@ -3,7 +3,7 @@ import importlib.util
 import os
 import torch
 
-from opencount.core.utils.exp import init_experiment
+from engine.core.utils.exp import init_experiment
 
 
 def main(rank):
