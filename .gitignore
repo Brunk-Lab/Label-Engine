@@ -1,8 +1,6 @@
-# Data
-data
 
 # Saves
-*saves
+saves
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
