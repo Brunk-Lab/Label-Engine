@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class autoCountModel(nn.Module):
+class autoModel(nn.Module):
     def __init__(self, num_in_channels, num_out_channels):
         super().__init__()
         

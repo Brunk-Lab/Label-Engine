@@ -10,7 +10,7 @@ from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from engine.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
-from engine.core.model.icount_base_model import iCountModel
+from engine.core.model.inter_base_model import interModel
 from engine.core.utils.optimizer import get_optimizer
 from engine.core.utils.scheduler import get_scheduler
 from engine.core.utils.distributed import get_sampler
@@ -19,10 +19,10 @@ from engine.core.utils.simpleitk import convert_tensor_to_image, \
 from engine.core.loss.focal_loss import FocalLoss
 
 
-class ICTrainer(object):
+class InterTrainer(object):
     def __init__(
             self,
-            model: iCountModel,
+            model: interModel,
             cfg: Dict,
             trainset,
             valset,

@@ -8,17 +8,17 @@ def main(cfg: Dict) -> None:
     train(model, cfg)
 
 
-def build_model(img_size: Tuple[int, int]) -> iUNet:
+def build_model(img_size: Tuple[int, int]) -> interUNet:
     num_in_channels = 3
     num_out_channels = 2
 
-    model = iUNet(num_in_channels, num_out_channels)
+    model = interUNet(num_in_channels, num_out_channels)
     max_stride = model.max_stride
     assert img_size[0] % max_stride == 0 and img_size[1] % max_stride == 0
     return model
 
 
-def train(model: iUNet, cfg: Dict) -> None:
+def train(model: interUNet, cfg: Dict) -> None:
 
     augmentation_params = {
         'random_translation': [10, 10],
@@ -46,7 +46,7 @@ def train(model: iUNet, cfg: Dict) -> None:
     optimizer_params = {'name':'adam', 'lr':5e-5, 'betas':(0.9, 0.999), 'eps':1e-8}
     scheduler_params = {'name':'MultiStepLR', 'milestones':[500, 800], 'gamma':0.2}
 
-    trainer = ICTrainer(
+    trainer = InterTrainer(
         model,
         cfg,
         trainset,

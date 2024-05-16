@@ -8,17 +8,17 @@ def main(cfg: Dict) -> None:
     train(model, cfg)
 
 
-def build_model(img_size: Tuple[int, int]) -> UNet:
+def build_model(img_size: Tuple[int, int]) -> autoUNet:
     num_in_channels = 1
     num_out_channels = 2
 
-    model = UNet(num_in_channels, num_out_channels)
+    model = autoUNet(num_in_channels, num_out_channels)
     max_stride = model.max_stride
     assert img_size[0] % max_stride == 0 and img_size[1] % max_stride == 0
     return model
 
 
-def train(model: UNet, cfg: Dict) -> None:
+def train(model: autoUNet, cfg: Dict) -> None:
 
     augmentation_params = {
         'random_translation': [10, 10],

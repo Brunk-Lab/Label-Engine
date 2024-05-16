@@ -10,7 +10,7 @@ from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from engine.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
-from engine.core.model.auto_base_model import autoCountModel
+from engine.core.model.auto_base_model import autoModel
 from engine.core.utils.optimizer import get_optimizer
 from engine.core.utils.scheduler import get_scheduler
 from engine.core.utils.distributed import get_sampler
@@ -22,7 +22,7 @@ from engine.core.loss.focal_loss import FocalLoss
 class AutoTrainer(object):
     def __init__(
             self,
-            model: autoCountModel,
+            model: autoModel,
             cfg: Dict,
             trainset,
             valset,

@@ -1,10 +1,10 @@
 
 from engine.core.utils.serialization import serialize
 from engine.core.model.modules.unet_modules import *
-from engine.core.model.icount_base_model import iCountModel
+from engine.core.model.inter_base_model import interModel
 
 
-class iUNet(iCountModel):
+class interUNet(interModel):
   """ unet implementation """
 
   @serialize

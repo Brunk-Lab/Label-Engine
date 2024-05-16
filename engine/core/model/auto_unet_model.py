@@ -1,10 +1,10 @@
 
 from engine.core.utils.serialization import serialize
 from engine.core.model.modules.unet_modules import *
-from engine.core.model.auto_base_model import autoCountModel
+from engine.core.model.auto_base_model import autoModel
 
 
-class UNet(autoCountModel):
+class autoUNet(autoModel):
   """ unet implementation """
 
   @serialize
