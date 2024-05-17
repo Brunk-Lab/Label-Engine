@@ -11,7 +11,6 @@ class ecDNADataset(ISDataset):
         self,
         dataset_path,
         split='train',
-        crop_size=[2048, 2448],
         **kwargs
     ) -> None:
         super(ecDNADataset, self).__init__(**kwargs)
@@ -42,7 +41,8 @@ class ecDNADataset(ISDataset):
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         instances_mask = cv2.imread(mask_path)[:, :, 0].astype(np.int32)
-        instances_mask[instances_mask == 128] = -1
+        instances_mask[instances_mask == 128] = 0
         instances_mask[instances_mask > 128] = 1
 
-        return DSample(image, instances_mask, objects_ids=[1], ignore_ids=[-1], sample_id=index)
+        return DSample(image, instances_mask, objects_ids=[1], 
+                       sample_id=index)

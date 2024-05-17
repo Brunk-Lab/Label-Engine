@@ -1,6 +1,6 @@
 import torch
 import math
-from opencount.core.utils.log import logger
+from engine.core.utils.log import logger
 
 
 def get_optimizer(model, optimizer_params):

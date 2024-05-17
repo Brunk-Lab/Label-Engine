@@ -94,7 +94,7 @@ class InterTrainer(object):
         for i, batch_data in enumerate(self.train_data):
             global_step = epoch * len(self.train_data) + i
 
-            loss, outputs, info = self.batch_forward(batch_data, validation=False)
+            loss, outputs = self.batch_forward(batch_data, validation=False)
 
             self.optim.zero_grad()
             loss.backward()
@@ -168,29 +168,33 @@ class InterTrainer(object):
     def batch_forward(self, batch_data, validation=False):
 
         with torch.set_grad_enabled(not validation):
-            info = batch_data['info']
+            batch_data = {k: v.to(self.device) for k, v in batch_data.items()}
+            image, mask = batch_data['images'], batch_data['instances']
             points = batch_data['points']
-            crops, masks = batch_data['images']
- 
-            crops, masks = crops.to(self.device), masks.to(self.device)
 
-            text_prompt = None
-            visual_prompts = {'points': points}
-            outputs = self.model(crops, visual_prompts, text_prompt)
-            
-            preds = outputs.permute(0, 2, 3, 1).contiguous()
-            preds = preds.view(-1, preds.shape[-1])
+            image_feats = self.model.module.get_image_feats(image)
+            prev_mask = torch.zeros_like(image, dtype=torch.float32)[:, :1, :, :]
 
-            masks = masks.permute(0, 2, 3, 1).contiguous()
-            masks = masks.view(-1, masks.shape[-1])
+            prompts = {'points': points, 'prev_mask': prev_mask}
+            prompt_feats = self.model.module.get_prompt_feats(prompts)
+            output = self.model(image_feats, prompt_feats)['instances']
 
-            selected_sample_indices = torch.nonzero(masks[:, 0] >= 0).squeeze()
-            masks = torch.index_select(masks, 0, selected_sample_indices)
-            preds = torch.index_select(preds, 0, selected_sample_indices)
+            # proceed with more interactions
+            # TO BE Done
 
-            train_loss = self.loss_func(preds, masks)
+            pred = output.permute(0, 2, 3, 1).contiguous()
+            pred = pred.view(-1, pred.shape[-1])
 
-        return train_loss, outputs, info
+            mask = mask.permute(0, 2, 3, 1).contiguous()
+            mask = mask.view(-1, mask.shape[-1])
+
+            selected_sample_indices = torch.nonzero(mask[:, 0] >= 0).squeeze()
+            mask = torch.index_select(mask, 0, selected_sample_indices)
+            pred = torch.index_select(pred, 0, selected_sample_indices)
+
+            train_loss = self.loss_func(pred, mask)
+
+        return train_loss, output
 
     def get_validation_metrics(self, gathered_outputs, gathered_info):
         metrics = {}
@@ -213,7 +217,7 @@ class InterTrainer(object):
         pass
 
 
-def load_weights(model: iCountModel, weights_path: str) -> iCountModel:
+def load_weights(model: interModel, weights_path: str) -> interModel:
     if weights_path is not None:
         if os.path.isfile(weights_path):
             current_state_dict = model.state_dict()

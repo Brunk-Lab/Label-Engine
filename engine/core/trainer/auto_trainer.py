@@ -208,7 +208,7 @@ class AutoTrainer(object):
         pass
 
 
-def load_weights(model: autoCountModel, weights_path: str) -> autoCountModel:
+def load_weights(model: autoModel, weights_path: str) -> autoModel:
     if weights_path is not None:
         if os.path.isfile(weights_path):
             current_state_dict = model.state_dict()
