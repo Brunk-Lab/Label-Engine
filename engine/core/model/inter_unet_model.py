@@ -96,6 +96,6 @@ class interUNet(interModel):
     return prompt_feats
 
   def forward(self, image_feats, prompt_feats):
-    image_feats = [x + y for x, y in zip(image_feats, prompt_feats)]
-    mask_prob = self.mask_decoder(image_feats)
+    feats_fused = [x + y for x, y in zip(image_feats, prompt_feats)]
+    mask_prob = self.mask_decoder(feats_fused)
     return {'instances': mask_prob}

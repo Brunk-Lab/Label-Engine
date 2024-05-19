@@ -4,4 +4,4 @@ torchrun --nproc-per-node=2 \
 	     ./engine/train.py ${MODEL_CONFIG} \
 		 --workers=2 \
 	     --batch-size=2 \
-	     --gpus=0,1
+	     --gpus=2,3

@@ -54,7 +54,8 @@ class InterTrainer(object):
         self.model = model.to(self.device)
 
         if cfg.multi_gpu:
-            self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]])
+            self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]],
+                             broadcast_buffers=False)
 
         self.model = load_weights(self.model, self.cfg.weights)
         self.optim = get_optimizer(self.model, optimizer_params)
@@ -97,7 +98,7 @@ class InterTrainer(object):
             loss, outputs = self.batch_forward(batch_data, validation=False)
 
             self.optim.zero_grad()
-            loss.backward()
+            loss.backward()                
             self.optim.step()
 
             # gather losses from all devices

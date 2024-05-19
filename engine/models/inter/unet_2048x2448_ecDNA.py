@@ -28,7 +28,6 @@ def train(model: interUNet, cfg: Dict) -> None:
     cfg.num_max_next_points = 3
 
     train_augmentator = Compose([
-        UniformRandomResize(scale_range=(0.9, 1.1)),
         Flip(),
         ShiftScaleRotate(
             shift_limit=0.03, 
@@ -43,13 +42,6 @@ def train(model: interUNet, cfg: Dict) -> None:
             p=0.75
         ),
         RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.75),
-        ResizeLongestSide(target_length=max(cfg.img_size)),
-        PadIfNeeded(
-            min_height=min(cfg.img_size),
-            min_width=min(cfg.img_size),
-            border_mode=0,
-            position='top_left',
-        ),
     ], p=1.0)
 
     val_augmentator = Compose([
