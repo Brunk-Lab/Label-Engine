@@ -52,12 +52,12 @@ class InterTrainer(object):
 
         self.device = cfg.device
         self.model = model.to(self.device)
+        self.model = load_weights(self.model, self.cfg.weights)
 
         if cfg.multi_gpu:
             self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]],
                              broadcast_buffers=False)
 
-        self.model = load_weights(self.model, self.cfg.weights)
         self.optim = get_optimizer(self.model, optimizer_params)
         self.sched = get_scheduler(self.optim, scheduler_params)
         if cfg.start_epoch > 0:
