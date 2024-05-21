@@ -1,3 +1,4 @@
+import cv2
 from datetime import datetime
 import json
 import os
@@ -10,6 +11,7 @@ from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from engine.core.utils.log import logger, TqdmToLogger, SummaryWriterAvg
+from engine.core.utils.vis import draw_probmap, draw_points
 from engine.core.model.inter_base_model import interModel
 from engine.core.utils.optimizer import get_optimizer
 from engine.core.utils.scheduler import get_scheduler
@@ -95,7 +97,8 @@ class InterTrainer(object):
         for i, batch_data in enumerate(self.train_data):
             global_step = epoch * len(self.train_data) + i
 
-            loss, outputs = self.batch_forward(batch_data, validation=False)
+            loss, splitted_batch_data, output = \
+                self.batch_forward(batch_data, validation=False)
 
             self.optim.zero_grad()
             loss.backward()                
@@ -110,7 +113,9 @@ class InterTrainer(object):
 
                 if self.image_dump_interval > 0 and \
                     global_step % self.image_dump_interval == 0:
-                    self.save_visualization()
+                    self.save_visualization(
+                        splitted_batch_data, output, global_step, prefix='train'
+                    )
 
         if self.is_master:
             save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=-1, 
@@ -178,12 +183,12 @@ class InterTrainer(object):
 
             prompts = {'points': points, 'prev_mask': prev_mask}
             prompt_feats = self.model.module.get_prompt_feats(prompts)
-            output = self.model(image_feats, prompt_feats)['instances']
+            output = self.model(image_feats, prompt_feats)
 
             # proceed with more interactions
             # TO BE Done
 
-            pred = output.permute(0, 2, 3, 1).contiguous()
+            pred = output['instances'].permute(0, 2, 3, 1).contiguous()
             pred = pred.view(-1, pred.shape[-1])
 
             mask = mask.permute(0, 2, 3, 1).contiguous()
@@ -195,7 +200,7 @@ class InterTrainer(object):
 
             train_loss = self.loss_func(pred, mask)
 
-        return train_loss, output
+        return train_loss, batch_data, output
 
     def get_validation_metrics(self, gathered_outputs, gathered_info):
         metrics = {}
@@ -214,8 +219,47 @@ class InterTrainer(object):
 
         return metrics
 
-    def save_visualization(self):
-        pass
+    def save_visualization(
+        self, 
+        splitted_batch_data, 
+        output: Dict, 
+        global_step, 
+        prefix
+    ) -> None:
+        output_images_path = self.cfg.VIS_PATH / prefix
+        if not output_images_path.exists():
+            output_images_path.mkdir(parents=True)
+        image_name_prefix = f'{global_step:06d}'
+
+        images = splitted_batch_data['images']
+        points = splitted_batch_data['points']
+        gt_masks = splitted_batch_data['instances']
+        pred_masks = output['instances']
+
+        gt_masks = gt_masks.cpu().numpy()
+        gt_mask = np.squeeze(gt_masks[0], axis=0)
+
+        pred_masks = pred_masks.detach().cpu().numpy()
+        pred_mask = pred_masks[0, 1]
+
+        points = points.detach().cpu().numpy()
+        points = points[0]
+
+        image = images.cpu().numpy() * 255
+        image = image[0].transpose(1, 2, 0)
+
+        image_with_points = draw_points(image, points, (0, 255, 0))
+
+        gt_mask[gt_mask < 0] = 0.25
+        gt_mask = draw_probmap(gt_mask)
+        pred_mask = draw_probmap(pred_mask)
+        viz_image = np.hstack((image_with_points, gt_mask, pred_mask)).astype(np.uint8)
+
+        def _save_image(suffix, image):
+            cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.jpg'),
+                        image, [cv2.IMWRITE_JPEG_QUALITY, 85])
+
+        _save_image('instance_segmentation', viz_image[:, :, ::-1])
 
 
 def load_weights(model: interModel, weights_path: str) -> interModel:
