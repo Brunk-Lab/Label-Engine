@@ -56,7 +56,8 @@ class ISDataset(torch.utils.data.dataset.Dataset):
         }
 
         if self.with_image_info:
-            output['image_info'] = sample.sample_id
+            output['sample_ids'] = sample.sample_id
+            output['image_names'] = self.dataset_samples[sample.sample_id]
 
         return output
 

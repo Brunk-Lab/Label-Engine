@@ -97,8 +97,7 @@ class InterTrainer(object):
         for i, batch_data in enumerate(self.train_data):
             global_step = epoch * len(self.train_data) + i
 
-            loss, splitted_batch_data, output = \
-                self.batch_forward(batch_data, validation=False)
+            loss, batch_data, output = self.batch_forward(batch_data)
 
             self.optim.zero_grad()
             loss.backward()                
@@ -113,9 +112,7 @@ class InterTrainer(object):
 
                 if self.image_dump_interval > 0 and \
                     global_step % self.image_dump_interval == 0:
-                    self.save_visualization(
-                        splitted_batch_data, output, global_step, prefix='train'
-                    )
+                    self.save_visualization(batch_data, output, global_step, 'train')
 
         if self.is_master:
             save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=-1, 
@@ -174,7 +171,8 @@ class InterTrainer(object):
     def batch_forward(self, batch_data, validation=False):
 
         with torch.set_grad_enabled(not validation):
-            batch_data = {k: v.to(self.device) for k, v in batch_data.items()}
+            batch_data = {k: v if k == 'image_names' else v.to(self.device) \
+                          for k, v in batch_data.items()}
             image, mask = batch_data['images'], batch_data['instances']
             points = batch_data['points']
 
@@ -221,7 +219,7 @@ class InterTrainer(object):
 
     def save_visualization(
         self, 
-        splitted_batch_data, 
+        batch_data, 
         output: Dict, 
         global_step, 
         prefix
@@ -231,9 +229,10 @@ class InterTrainer(object):
             output_images_path.mkdir(parents=True)
         image_name_prefix = f'{global_step:06d}'
 
-        images = splitted_batch_data['images']
-        points = splitted_batch_data['points']
-        gt_masks = splitted_batch_data['instances']
+        image_names = batch_data['image_names']
+        images = batch_data['images']
+        points = batch_data['points']
+        gt_masks = batch_data['instances']
         pred_masks = output['instances']
 
         gt_masks = gt_masks.cpu().numpy()
@@ -260,7 +259,7 @@ class InterTrainer(object):
             cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.jpg'),
                         image, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
-        _save_image('instance_segmentation', viz_image[:, :, ::-1])
+        _save_image(f'seg_{image_names[0]}', viz_image[:, :, ::-1])
 
 
 def load_weights(model: interModel, weights_path: str) -> interModel:

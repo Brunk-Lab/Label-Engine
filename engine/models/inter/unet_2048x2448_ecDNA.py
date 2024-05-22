@@ -67,6 +67,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         augmentator=train_augmentator,
         keep_background_prob=0.05,
         points_sampler=points_sampler,
+        with_image_info=True,
     )
 
     valset = ecDNADataset(
@@ -74,6 +75,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         split='val',
         augmentator=val_augmentator,
         points_sampler=points_sampler,
+        with_image_info=True,
     )
 
     loss_func_params = {'name':'Focal', 'alpha':(0.5, 0.5), 'class_num':2}
@@ -88,7 +90,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
-        image_dump_interval=1000,
+        image_dump_interval=5,
         checkpoint_interval=200,
         validation_interval=1,
     )

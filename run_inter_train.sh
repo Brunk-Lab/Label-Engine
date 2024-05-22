@@ -4,4 +4,5 @@ torchrun --nproc-per-node=2 \
 	     ./engine/train.py ${MODEL_CONFIG} \
 		 --workers=2 \
 	     --batch-size=2 \
-	     --gpus=2,3
+	     --gpus=0,3 \
+		 --weights /playpen-raid2/qinliu/projects/LabelEngine/saves/model_0424_2024/inter/inter_unet_2048x2448_ecDNA/027/checkpoints/last_checkpoint.pth
