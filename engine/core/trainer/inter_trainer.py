@@ -248,12 +248,13 @@ class InterTrainer(object):
         image = images.cpu().numpy() * 255
         image = image[0].transpose(1, 2, 0)
 
-        image_with_points = draw_points(image, points, (0, 255, 0))
+        image_w_pts = draw_points(image, points[:len(points) // 2], (0, 255, 0))
+        image_w_pts = draw_points(image_w_pts, points[len(points) // 2:], (255, 0, 0))
 
         gt_mask[gt_mask < 0] = 0.25
         gt_mask = draw_probmap(gt_mask)
         pred_mask = draw_probmap(pred_mask)
-        viz_image = np.hstack((image_with_points, gt_mask, pred_mask)).astype(np.uint8)
+        viz_image = np.hstack((image_w_pts, gt_mask, pred_mask)).astype(np.uint8)
 
         def _save_image(suffix, image):
             cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.jpg'),
