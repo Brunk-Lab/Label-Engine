@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -130,48 +130,57 @@ class InterTrainer(object):
         self.sched.step()
 
     def validation(self, epoch):
-        val_metrics = {}
+        val_metrics = {'thresholds': [0.3, 0.35, 0.4, 0.45, 0.5], 'data': {}}
         self.model.eval()
         for i, batch_data in enumerate(self.val_data):
-            loss, outputs, info = self.batch_forward(batch_data, validation=True)
+            loss, batch_data, output = self.batch_forward(batch_data, validation=True)
 
             # gather data from all devices
             dist.all_reduce(loss, op=dist.ReduceOp.SUM)
 
-            gathered_outputs = [None for _ in range(self.cfg.world_size)]
-            gathered_info = [None for _ in range(self.cfg.world_size)]
-            dist.all_gather_object(gathered_outputs, outputs)
-            dist.all_gather_object(gathered_info, info)
+            batch_preds = [None for _ in range(self.cfg.world_size)]
+            batch_coords = [None for _ in range(self.cfg.world_size)]
+            batch_names = [None for _ in range(self.cfg.world_size)]
+            dist.all_gather_object(batch_preds, output['instances'])
+            dist.all_gather_object(batch_coords, batch_data['coords'])
+            dist.all_gather_object(batch_names, batch_data['image_names'])
 
             if self.is_master:
                 loss /= dist.get_world_size()
                 logger.info(f'Epoch {epoch}, batch {i}, val_loss {loss.item():.4f}')
 
                 # save validation results
-                metrics = self.get_validation_metrics(gathered_outputs, gathered_info)
-                val_metrics.update(metrics)
+                metrics = self.batch_metrics(
+                    batch_preds, batch_coords, batch_names, val_metrics['thresholds'])
+                val_metrics['data'].update(metrics)
 
         if self.is_master:
-            num_normal_cases = 0
-            metrics_sum = 0.
-            for key in val_metrics.keys():
-                if val_metrics[key][0] <= 1.:
-                    num_normal_cases += 1
-                    metrics_sum += val_metrics[key][0]
+            thresholds = val_metrics['thresholds']
+            normal_metrics_high = [[] for _ in range(len(thresholds))]
+            normal_metrics_low = [[] for _ in range(len(thresholds))]
+            for image_name in val_metrics['data']:
+                for i, threshold in enumerate(thresholds):
+                    metric = val_metrics['data'][image_name][threshold][0]
+                    if abs(metric - 1.0) <= 0.1:
+                        normal_metrics_high[i].append(metric)
+                    if abs(metric - 1.0) <= 0.2:
+                        normal_metrics_low[i].append(metrics)
+
+            report = val_metrics['report'] = {}
+            report['total_cases'] = num_cases = max(1, len(val_metrics['data']))
+            report['failure_cases'] = {
+                'high': [len(metrics) / num_cases for metrics in normal_metrics_high],
+                'low': [len(metrics) / num_cases for metrics in normal_metrics_low],
+            }
 
             now = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             with open(f'{self.cfg.VIS_PATH}/val_epoch_{epoch}_{now}.json', 'w') as fp:
                 json.dump(val_metrics, fp)
 
-            report_msg = f'Report: normal/total: {num_normal_cases}/{len(val_metrics)}, \
-                metric: {metrics_sum / (max(1, num_normal_cases)):.4f}'
-            logger.info(report_msg)
-
-
     def batch_forward(self, batch_data, validation=False):
 
         with torch.set_grad_enabled(not validation):
-            batch_data = {k: v if k == 'image_names' else v.to(self.device) \
+            batch_data = {k: v if isinstance(v, list) else v.to(self.device) \
                           for k, v in batch_data.items()}
             image, mask = batch_data['images'], batch_data['instances']
             points = batch_data['points']
@@ -200,20 +209,19 @@ class InterTrainer(object):
 
         return train_loss, batch_data, output
 
-    def get_validation_metrics(self, gathered_outputs, gathered_info):
+    def batch_metrics(self, batch_preds, batch_coords, batch_names, thresholds):
         metrics = {}
-        for i in range(len(gathered_outputs)):
-            image_name_list = gathered_info[i]['name']
-            num_coords_list = gathered_info[i]['num_coords']
+        for preds, coords, names in zip(batch_preds, batch_coords, batch_names):
+            for i, name in enumerate(names):
+                pred = preds[i][1]
+                pred = convert_tensor_to_image(pred, dtype=np.float32)
+                num_gt_cc = int(coords[i])
 
-            for j in range(len(image_name_list)):
-                image_prob = gathered_outputs[i][j][1].data
-                image_prob = convert_tensor_to_image(image_prob, dtype=np.float)
-
-                coords_pred = int(get_num_connected_component(image_prob > 0.4, 1))
-                coords_gt = int(num_coords_list[j].numpy())
-                metric = coords_pred / coords_gt
-                metrics[image_name_list[j]] = [metric, coords_pred, coords_gt]
+                metrics[name] = {}
+                for thr in thresholds:
+                    num_pred_cc = int(get_num_connected_component(pred > thr, 1))
+                    metric = num_pred_cc / num_gt_cc
+                    metrics[name][thr] = (metric, num_pred_cc, num_gt_cc)
 
         return metrics
 

@@ -90,8 +90,8 @@ def train(model: interUNet, cfg: Dict) -> None:
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
-        image_dump_interval=5,
-        checkpoint_interval=200,
-        validation_interval=1,
+        image_dump_interval=1000,
+        checkpoint_interval=10,
+        validation_interval=10,
     )
-    trainer.run(num_epochs=1001, validation=False)
+    trainer.run(num_epochs=501, validation=True)

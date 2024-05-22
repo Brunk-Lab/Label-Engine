@@ -15,10 +15,12 @@ class DSample:
         objects_ids=None, 
         ignore_ids=None, 
         sample_id=None,
+        coords=None,
         objects_category_names=None
     ):
         self.image = image
         self.sample_id = sample_id
+        self.coords = coords
         self.objects_category_names = objects_category_names
 
         if len(encoded_masks.shape) == 2:
