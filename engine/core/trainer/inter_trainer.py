@@ -37,6 +37,9 @@ class InterTrainer(object):
     ) -> None:
         self.cfg = cfg
         self.is_master = self.cfg.local_rank == 0
+        if self.is_master:
+            logger.info(f'Training cases: {len(trainset)}')
+            logger.info(f'Validation cases: {len(valset)}')
 
         self.train_data = DataLoader(
             trainset, batch_size=cfg.batch_size,

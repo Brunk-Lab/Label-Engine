@@ -16,6 +16,7 @@ def build_model(img_size: Tuple[int, int]) -> interUNet:
         encoder_params, 
         decoder_params,
         use_disks=True,
+        auto=True,
     )
     max_stride = 16
     assert img_size[0] % max_stride == 0 and img_size[1] % max_stride == 0
@@ -68,6 +69,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         keep_background_prob=0.05,
         points_sampler=points_sampler,
         with_image_info=True,
+        celline='NCIH2170',
     )
 
     valset = ecDNADataset(
@@ -76,6 +78,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         augmentator=val_augmentator,
         points_sampler=points_sampler,
         with_image_info=True,
+        celline='NCIH2170',
     )
 
     loss_func_params = {'name':'Focal', 'alpha':(0.5, 0.5), 'class_num':2}
@@ -91,7 +94,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
         image_dump_interval=1000,
-        checkpoint_interval=10,
-        validation_interval=10,
+        checkpoint_interval=20,
+        validation_interval=5,
     )
     trainer.run(num_epochs=501, validation=True)

@@ -11,6 +11,7 @@ class ecDNADataset(ISDataset):
         self,
         dataset_path,
         split='train',
+        celline=None,
         **kwargs
     ) -> None:
         super(ecDNADataset, self).__init__(**kwargs)
@@ -33,6 +34,10 @@ class ecDNADataset(ISDataset):
         f = open(imlist_file, 'r')
         for line in f:
             im_name = line.split('.')[0]
+            if celline is not None:
+                if not im_name.startswith(celline):
+                    continue
+
             self.dataset_samples.append(im_name)
 
     def get_sample(self, index) -> DSample:

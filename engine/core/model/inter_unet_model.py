@@ -64,10 +64,12 @@ class interUNet(interModel):
     norm_radius=3,
     use_disks=False,
     cpu_dist_maps=False,
-    norm_mean_std=([.485, .456, .406], [.229, .224, .225])
+    norm_mean_std=([.485, .456, .406], [.229, .224, .225]),
+    auto=False,
   ):
     super().__init__()
     self.normalization = BatchImageNormalize(norm_mean_std[0], norm_mean_std[1])
+    self.auto = auto
 
     self.dist_maps = DistMaps(
       norm_radius=norm_radius, 
@@ -96,6 +98,10 @@ class interUNet(interModel):
     return prompt_feats
 
   def forward(self, image_feats, prompt_feats):
-    feats_fused = [x + y for x, y in zip(image_feats, prompt_feats)]
+    if self.auto:
+      feats_fused = [x + y for x, y in zip(image_feats, prompt_feats)]
+    else:
+      feats_fused = image_feats
+      
     mask_prob = self.mask_decoder(feats_fused)
     return {'instances': mask_prob}
