@@ -1,6 +1,6 @@
 from core.utils.exp_imports.default import *
 
-MODEL_NAME = 'inter_unet_2048x2448_ecDNA'
+MODEL_NAME = 'inter_unet_2048x2448_ecDNA_check'
 
 
 def main(cfg: Dict) -> None:
@@ -64,7 +64,7 @@ def train(model: interUNet, cfg: Dict) -> None:
 
     trainset = ecDNADataset(
         dataset_path=cfg.ECDNA_PATH,
-        split='train',
+        split='val',
         augmentator=train_augmentator,
         keep_background_prob=0.05,
         points_sampler=points_sampler,
@@ -74,7 +74,7 @@ def train(model: interUNet, cfg: Dict) -> None:
 
     valset = ecDNADataset(
         dataset_path=cfg.ECDNA_PATH,
-        split='val',
+        split='train',
         augmentator=val_augmentator,
         points_sampler=points_sampler,
         with_image_info=True,
@@ -93,8 +93,8 @@ def train(model: interUNet, cfg: Dict) -> None:
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
-        image_dump_interval=500,
-        checkpoint_interval=10,
-        validation_interval=10,
+        image_dump_interval=1,
+        checkpoint_interval=20,
+        validation_interval=1,
     )
-    trainer.run(num_epochs=501, validation=True)
+    trainer.run(num_epochs=1, validation=False)

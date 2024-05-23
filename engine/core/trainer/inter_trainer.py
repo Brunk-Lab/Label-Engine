@@ -59,9 +59,8 @@ class InterTrainer(object):
         self.model = model.to(self.device)
         self.model = load_weights(self.model, self.cfg.weights)
 
-        if cfg.multi_gpu:
-            self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]],
-                             broadcast_buffers=False)
+        self.model = DDP(self.model, device_ids=[cfg.gpu_ids[cfg.local_rank]],
+                        broadcast_buffers=False)
 
         self.optim = get_optimizer(self.model, optimizer_params)
         self.sched = get_scheduler(self.optim, scheduler_params)
@@ -118,8 +117,7 @@ class InterTrainer(object):
                     self.save_visualization(batch_data, output, global_step, 'train')
 
         if self.is_master:
-            save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=-1, 
-                            multi_gpu=self.cfg.multi_gpu)
+            save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=-1)
 
             if isinstance(self.checkpoint_interval, (list, tuple)):
                 freq = [x for x in self.checkpoint_interval if x[0] <= epoch][-1][1]
@@ -127,8 +125,7 @@ class InterTrainer(object):
                 freq = self.checkpoint_interval
 
             if epoch % freq == 0:
-                save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=epoch,
-                                multi_gpu=self.cfg.multi_gpu)
+                save_checkpoint(self.model, self.cfg.CHECKPOINTS_PATH, epoch=epoch)
 
         self.sched.step()
 
@@ -286,7 +283,7 @@ def load_weights(model: interModel, weights_path: str) -> interModel:
     return model
 
 
-def save_checkpoint(model, chk_folder, epoch, verbose=False, multi_gpu=False):
+def save_checkpoint(model, chk_folder, epoch, verbose=False):
     chk_name = 'last_checkpoint.pth' if epoch < 0 else f'{epoch:03d}.pth'
     if not chk_folder.exists():
         chk_folder.mkdir(parents=True)
@@ -295,5 +292,5 @@ def save_checkpoint(model, chk_folder, epoch, verbose=False, multi_gpu=False):
     if verbose:
         logger.info(f'Save checkpoint to {str(chk_path)}')
     
-    net = model.module if multi_gpu else model
+    net = model.module
     torch.save({'state_dict': net.state_dict(), 'config': net._config}, str(chk_path))
