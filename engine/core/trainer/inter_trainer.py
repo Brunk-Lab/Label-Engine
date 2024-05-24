@@ -1,6 +1,7 @@
 import cv2
 from datetime import datetime
 import json
+import math
 import os
 import logging
 import numpy as np
@@ -110,7 +111,8 @@ class InterTrainer(object):
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                logger.info(f'Epoch {epoch}, batch {i}, train_loss {loss.item():.4f}')
+                logger.info(f'Epoch {epoch}, batch {i}/{len(self.train_data)}, \
+                            global_step {global_step}, train_loss {loss.item():.5f}')
 
                 if self.image_dump_interval > 0 and \
                     global_step % self.image_dump_interval == 0:
@@ -147,7 +149,7 @@ class InterTrainer(object):
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                logger.info(f'Epoch {epoch}, batch {i}, val_loss {loss.item():.4f}')
+                logger.info(f'Epoch {epoch}, batch {i}/{len(self.val_data)}, val_loss {loss.item():.4f}')
 
                 # save validation results
                 metrics = self.batch_metrics(
@@ -156,22 +158,28 @@ class InterTrainer(object):
 
         if self.is_master:
             thresholds = val_metrics['thresholds']
-            normal_metrics_high = [[] for _ in range(len(thresholds))]
-            normal_metrics_low = [[] for _ in range(len(thresholds))]
+            normal_cases_nr10 = [0 for _ in range(len(thresholds))]
+            normal_cases_nr20 = [0 for _ in range(len(thresholds))]
+            mae = [0 for _ in range(len(thresholds))]
+            mse = [0 for _ in range(len(thresholds))]
             for image_name in val_metrics['data']:
                 for i, threshold in enumerate(thresholds):
-                    metric = val_metrics['data'][image_name][threshold][0]
+                    metric, n_pred, n_gt = val_metrics['data'][image_name][threshold]
+                    mae[i] += abs(n_pred - n_gt)
+                    mse[i] += (n_pred - n_gt)**2
                     if abs(metric - 1.0) <= 0.1:
-                        normal_metrics_high[i].append(metric)
+                        normal_cases_nr10[i] += 1
                     if abs(metric - 1.0) <= 0.2:
-                        normal_metrics_low[i].append(metrics)
+                        normal_cases_nr20[i] += 1
 
             report = val_metrics['report'] = {}
-            report['total_cases'] = num_cases = max(1, len(val_metrics['data']))
-            report['failure_cases'] = {
-                'high': [len(metrics) / num_cases for metrics in normal_metrics_high],
-                'low': [len(metrics) / num_cases for metrics in normal_metrics_low],
-            }
+            report['total_cases'] = num_cases = len(val_metrics['data'])
+            report['metrics'] = {
+                'NR_10': [val / num_cases for val in normal_cases_nr10],
+                'NR_20': [val / num_cases for val in normal_cases_nr20],
+                'MAE': [val / num_cases for val in mae],
+                'MSE': [math.sqrt(val / num_cases) for val in mse],
+            } if num_cases > 0 else {}
 
             now = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             with open(f'{self.cfg.VIS_PATH}/val_epoch_{epoch}_{now}.json', 'w') as fp:
@@ -215,13 +223,13 @@ class InterTrainer(object):
             for i, name in enumerate(names):
                 pred = preds[i][1]
                 pred = convert_tensor_to_image(pred, dtype=np.float32)
-                num_gt_cc = int(coords[i])
+                num_gt = int(coords[i])
 
                 metrics[name] = {}
                 for thr in thresholds:
-                    num_pred_cc = int(get_num_connected_component(pred > thr, 1))
-                    metric = num_pred_cc / num_gt_cc
-                    metrics[name][thr] = (metric, num_pred_cc, num_gt_cc)
+                    num_pred = int(get_num_connected_component(pred > thr, 1))
+                    metric = num_pred / num_gt
+                    metrics[name][thr] = (metric, num_pred, num_gt)
 
         return metrics
 

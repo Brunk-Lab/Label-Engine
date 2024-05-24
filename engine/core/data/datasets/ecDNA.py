@@ -48,9 +48,13 @@ class ecDNADataset(ISDataset):
 
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # generate mask based on coordinates
+        # TO BE DONE
         mask = cv2.imread(mask_path)[:, :, 0].astype(np.int32)
         mask[mask == 128] = 0
         mask[mask > 128] = 1
+        
         coords = len(np.load(coords_path))
 
         return DSample(image, mask, objects_ids=[1], coords=coords, sample_id=index)
