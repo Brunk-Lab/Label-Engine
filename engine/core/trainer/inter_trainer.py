@@ -111,8 +111,8 @@ class InterTrainer(object):
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                logger.info(f'Epoch {epoch}, batch {i}/{len(self.train_data)}, \
-                            global_step {global_step}, train_loss {loss.item():.5f}')
+                logger.info(f'Epoch {epoch}, batch {i+1}/{len(self.train_data)}, ' + \
+                            f'step {global_step+1}, train_loss {loss.item():.5f}')
 
                 if self.image_dump_interval > 0 and \
                     global_step % self.image_dump_interval == 0:
@@ -140,20 +140,23 @@ class InterTrainer(object):
             # gather data from all devices
             dist.all_reduce(loss, op=dist.ReduceOp.SUM)
 
+            batch_masks = [None for _ in range(self.cfg.world_size)]
             batch_preds = [None for _ in range(self.cfg.world_size)]
             batch_coords = [None for _ in range(self.cfg.world_size)]
             batch_names = [None for _ in range(self.cfg.world_size)]
+            dist.all_gather_object(batch_masks, batch_data['instances'])
             dist.all_gather_object(batch_preds, output['instances'])
             dist.all_gather_object(batch_coords, batch_data['coords'])
             dist.all_gather_object(batch_names, batch_data['image_names'])
 
             if self.is_master:
                 loss /= dist.get_world_size()
-                logger.info(f'Epoch {epoch}, batch {i}/{len(self.val_data)}, val_loss {loss.item():.4f}')
+                logger.info(f'Epoch {epoch}, batch {i+1}/{len(self.val_data)}, ' + \
+                            f'val_loss {loss.item():.4f}')
 
                 # save validation results
-                metrics = self.batch_metrics(
-                    batch_preds, batch_coords, batch_names, val_metrics['thresholds'])
+                metrics = self.batch_metrics(batch_masks, batch_preds, batch_coords, 
+                                             batch_names, val_metrics['thresholds'])
                 val_metrics['data'].update(metrics)
 
         if self.is_master:
@@ -209,7 +212,7 @@ class InterTrainer(object):
             mask = mask.permute(0, 2, 3, 1).contiguous()
             mask = mask.view(-1, mask.shape[-1])
 
-            selected_sample_indices = torch.nonzero(mask[:, 0] >= 0).squeeze()
+            selected_sample_indices = torch.nonzero(mask[:, 0] <= 1).squeeze()
             mask = torch.index_select(mask, 0, selected_sample_indices)
             pred = torch.index_select(pred, 0, selected_sample_indices)
 
@@ -217,10 +220,19 @@ class InterTrainer(object):
 
         return train_loss, batch_data, output
 
-    def batch_metrics(self, batch_preds, batch_coords, batch_names, thresholds):
+    def batch_metrics(
+        self, 
+        batch_masks, 
+        batch_preds, 
+        batch_coords, 
+        batch_names, 
+        thresholds
+    ) -> Dict:
         metrics = {}
-        for preds, coords, names in zip(batch_preds, batch_coords, batch_names):
+        for masks, preds, coords, names in zip(batch_masks, batch_preds, 
+                                               batch_coords, batch_names):
             for i, name in enumerate(names):
+                mask = masks[i][0] # To be done
                 pred = preds[i][1]
                 pred = convert_tensor_to_image(pred, dtype=np.float32)
                 num_gt = int(coords[i])
@@ -266,13 +278,12 @@ class InterTrainer(object):
         image_w_pts = draw_points(image, points[:len(points) // 2], (0, 255, 0))
         image_w_pts = draw_points(image_w_pts, points[len(points) // 2:], (255, 0, 0))
 
-        gt_mask[gt_mask < 0] = 0.25
-        gt_mask = draw_probmap(gt_mask)
-        pred_mask = draw_probmap(pred_mask)
+        gt_mask = draw_probmap(gt_mask, norm=True)
+        pred_mask = draw_probmap(pred_mask, norm=True)
         viz_image = np.hstack((image_w_pts, gt_mask, pred_mask)).astype(np.uint8)
 
         def _save_image(suffix, image):
-            cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.jpg'),
+            cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),
                         image, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
         _save_image(f'seg_{image_names[0]}', viz_image[:, :, ::-1])

@@ -41,20 +41,26 @@ class ecDNADataset(ISDataset):
             self.dataset_samples.append(im_name)
 
     def get_sample(self, index) -> DSample:
+        """
+        Get a sample from index.
+
+        Parameters:
+        - index: int, the index of the sample
+
+        Returns:
+        - DSample: containing image, mask, objects_ids, and coordinates 
+        """
         image_name = self.dataset_samples[index]
         image_path = str(self._images_path / f'{image_name}.png')
-        mask_path = str(self._masks_path / f'{image_name}.png')
-        coords_path = str(self._coords_path / f'{image_name}.npy')
-
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # generate mask based on coordinates
-        # TO BE DONE
-        mask = cv2.imread(mask_path)[:, :, 0].astype(np.int32)
-        mask[mask == 128] = 0
-        mask[mask > 128] = 1
-        
+        coords_path = str(self._coords_path / f'{image_name}.npy')
         coords = len(np.load(coords_path))
 
-        return DSample(image, mask, objects_ids=[1], coords=coords, sample_id=index)
+        mask_path = str(self._masks_path / f'{image_name}.png')
+        mask = cv2.imread(mask_path)[:, :, 0].astype(np.int32)
+        image[mask == 128, :] = 0
+
+        return DSample(image, mask, objects_ids=[255], coords=coords, 
+                       sample_id=index)
