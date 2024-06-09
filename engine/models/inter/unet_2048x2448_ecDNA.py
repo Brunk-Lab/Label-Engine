@@ -27,6 +27,7 @@ def train(model: interUNet, cfg: Dict) -> None:
     cfg.img_size = (2048, 2448)
     cfg.num_max_points = 24
     cfg.num_max_next_points = 3
+    cfg.seed = 0
 
     train_augmentator = Compose([
         Flip(),
@@ -70,6 +71,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         points_sampler=points_sampler,
         with_image_info=True,
         celline='NCIH2170',
+        date='0609_2024',
     )
 
     valset = ecDNADataset(
@@ -79,6 +81,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         points_sampler=points_sampler,
         with_image_info=True,
         celline='NCIH2170',
+        date='0609_2024',
     )
 
     loss_func_params = {'name':'Focal', 'alpha':(0.5, 0.5), 'class_num':2}
@@ -96,5 +99,6 @@ def train(model: interUNet, cfg: Dict) -> None:
         image_dump_interval=500,
         checkpoint_interval=10,
         validation_interval=10,
+        seed=cfg.seed,
     )
     trainer.run(num_epochs=501, validation=True)

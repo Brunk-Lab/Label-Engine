@@ -35,7 +35,10 @@ class InterTrainer(object):
             image_dump_interval: int,
             checkpoint_interval: int,
             validation_interval: int,
+            seed: int=0,
     ) -> None:
+        torch.manual_seed(seed)
+
         self.cfg = cfg
         self.is_master = self.cfg.local_rank == 0
         if self.is_master:
@@ -135,6 +138,7 @@ class InterTrainer(object):
         val_metrics = {'thresholds': [0.3, 0.35, 0.4, 0.45, 0.5], 'data': {}}
         self.model.eval()
         for i, batch_data in enumerate(self.val_data):
+            global_step = i
             loss, batch_data, output = self.batch_forward(batch_data, validation=True)
 
             # gather data from all devices
@@ -152,7 +156,11 @@ class InterTrainer(object):
             if self.is_master:
                 loss /= dist.get_world_size()
                 logger.info(f'Epoch {epoch}, batch {i+1}/{len(self.val_data)}, ' + \
-                            f'val_loss {loss.item():.4f}')
+                            f'val_loss {loss.item():.5f}')
+
+                if self.image_dump_interval > 0 and \
+                    global_step % self.image_dump_interval == 0:
+                    self.save_visualization(batch_data, output, global_step, 'val')
 
                 # save validation results
                 metrics = self.batch_metrics(batch_masks, batch_preds, batch_coords, 

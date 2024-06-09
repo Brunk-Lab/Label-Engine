@@ -12,6 +12,7 @@ class ecDNADataset(ISDataset):
         dataset_path,
         split='train',
         celline=None,
+        date='0609_2024',
         **kwargs
     ) -> None:
         super(ecDNADataset, self).__init__(**kwargs)
@@ -20,15 +21,16 @@ class ecDNADataset(ISDataset):
         self._images_path = self.dataset_path / 'images'
         self._masks_path = self.dataset_path / 'masks'
         self._coords_path = self.dataset_path / 'coords'
+        self._ROIs_path = self.dataset_path / 'ROIs'
 
         self.split = split
         assert split in ('train', 'val', 'test')
         if split == 'train':
-            imlist_file = self.dataset_path / 'datasets' / 'train_0422_2024.txt'
+            imlist_file = self.dataset_path / 'datasets' / f'train_{date}.txt'
         elif split == 'val':
-            imlist_file = self.dataset_path / 'datasets' / 'val_0422_2024.txt'
+            imlist_file = self.dataset_path / 'datasets' / f'val_{date}.txt'
         else:
-            imlist_file = self.dataset_path / 'datasets' / 'test_0422_2024.txt'
+            imlist_file = self.dataset_path / 'datasets' / f'test_{date}.txt'
 
         self.dataset_samples = []
         f = open(imlist_file, 'r')
@@ -60,7 +62,11 @@ class ecDNADataset(ISDataset):
 
         mask_path = str(self._masks_path / f'{image_name}.png')
         mask = cv2.imread(mask_path)[:, :, 0].astype(np.int32)
-        image[mask == 128, :] = 0
+
+        roi_path = str(self._ROIs_path / f'{image_name}.png')
+        roi = cv2.imread(roi_path)[:, :, 0].astype(np.int32)
+
+        image[roi != 255, :] = 0
 
         return DSample(image, mask, objects_ids=[255], coords=coords, 
                        sample_id=index)
