@@ -173,11 +173,13 @@ class InterTrainer(object):
             normal_cases_nr20 = [0 for _ in range(len(thresholds))]
             mae = [0 for _ in range(len(thresholds))]
             mse = [0 for _ in range(len(thresholds))]
+            mdev = [0 for _ in range(len(thresholds))]
             for image_name in val_metrics['data']:
                 for i, threshold in enumerate(thresholds):
                     metric, n_pred, n_gt = val_metrics['data'][image_name][threshold]
                     mae[i] += abs(n_pred - n_gt)
                     mse[i] += (n_pred - n_gt)**2
+                    mdev[i] += abs(metric - 1.0)
                     if abs(metric - 1.0) <= 0.1:
                         normal_cases_nr10[i] += 1
                     if abs(metric - 1.0) <= 0.2:
@@ -186,8 +188,9 @@ class InterTrainer(object):
             report = val_metrics['report'] = {}
             report['total_cases'] = num_cases = len(val_metrics['data'])
             report['metrics'] = {
-                'NR_10': [val / num_cases for val in normal_cases_nr10],
-                'NR_20': [val / num_cases for val in normal_cases_nr20],
+                'Ratio@Dev10': [val / num_cases for val in normal_cases_nr10],
+                'Ratio@Dev20': [val / num_cases for val in normal_cases_nr20],
+                'MDEV': [val / num_cases for val in mdev],
                 'MAE': [val / num_cases for val in mae],
                 'MSE': [math.sqrt(val / num_cases) for val in mse],
             } if num_cases > 0 else {}
@@ -258,7 +261,8 @@ class InterTrainer(object):
         batch_data, 
         output: Dict, 
         global_step, 
-        prefix
+        prefix,
+        threshold=0.30,
     ) -> None:
         output_images_path = self.cfg.VIS_PATH / prefix
         if not output_images_path.exists():
@@ -269,13 +273,13 @@ class InterTrainer(object):
         images = batch_data['images']
         points = batch_data['points']
         gt_masks = batch_data['instances']
-        pred_masks = output['instances']
+        pred_probs = output['instances']
 
         gt_masks = gt_masks.cpu().numpy()
         gt_mask = np.squeeze(gt_masks[0], axis=0)
 
-        pred_masks = pred_masks.detach().cpu().numpy()
-        pred_mask = pred_masks[0, 1]
+        pred_probs = pred_probs.detach().cpu().numpy()
+        pred_prob = pred_probs[0, 1]
 
         points = points.detach().cpu().numpy()
         points = points[0]
@@ -287,8 +291,9 @@ class InterTrainer(object):
         image_w_pts = draw_points(image_w_pts, points[len(points) // 2:], (255, 0, 0))
 
         gt_mask = draw_probmap(gt_mask, norm=True)
-        pred_mask = draw_probmap(pred_mask, norm=True)
-        viz_image = np.hstack((image_w_pts, gt_mask, pred_mask)).astype(np.uint8)
+        pred_prob = draw_probmap(pred_prob, norm=True)
+        pred_mask = draw_probmap(pred_prob >= threshold, norm=True)
+        viz_image = np.hstack((image_w_pts, gt_mask, pred_prob, pred_mask)).astype(np.uint8)
 
         def _save_image(suffix, image):
             cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),

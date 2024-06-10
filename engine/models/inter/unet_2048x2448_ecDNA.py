@@ -86,7 +86,7 @@ def train(model: interUNet, cfg: Dict) -> None:
 
     loss_func_params = {'name':'Focal', 'alpha':(0.5, 0.5), 'class_num':2}
     optimizer_params = {'name':'adam', 'lr':5e-5, 'betas':(0.9, 0.999), 'eps':1e-8}
-    scheduler_params = {'name':'MultiStepLR', 'milestones':[500, 800], 'gamma':0.2}
+    scheduler_params = {'name':'MultiStepLR', 'milestones':[1000, 1500], 'gamma':0.2}
 
     trainer = InterTrainer(
         model,
@@ -101,4 +101,4 @@ def train(model: interUNet, cfg: Dict) -> None:
         validation_interval=10,
         seed=cfg.seed,
     )
-    trainer.run(num_epochs=501, validation=True)
+    trainer.run(num_epochs=2001, validation=True)
