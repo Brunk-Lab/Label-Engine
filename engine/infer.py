@@ -1,6 +1,19 @@
 import argparse
 
 
+def main():
+    valset = ecDNADataset(
+        dataset_path=cfg.ECDNA_PATH,
+        split='val',
+        augmentator=val_augmentator,
+        points_sampler=points_sampler,
+        with_image_info=True,
+        celline='NCIH2170',
+        date='0609_2024',
+    )
+
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
