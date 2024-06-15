@@ -291,9 +291,9 @@ class InterTrainer(object):
         image_w_pts = draw_points(image_w_pts, points[len(points) // 2:], (255, 0, 0))
 
         gt_mask = draw_probmap(gt_mask, norm=True)
-        pred_prob = draw_probmap(pred_prob, norm=True)
+        pred_map = draw_probmap(pred_prob, norm=True)
         pred_mask = draw_probmap(pred_prob >= threshold, norm=True)
-        viz_image = np.hstack((image_w_pts, gt_mask, pred_prob, pred_mask)).astype(np.uint8)
+        viz_image = np.hstack((image_w_pts, gt_mask, pred_map, pred_mask)).astype(np.uint8)
 
         def _save_image(suffix, image):
             cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),
