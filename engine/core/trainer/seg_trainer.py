@@ -23,7 +23,7 @@ from engine.core.utils.simpleitk import convert_tensor_to_image, \
 from engine.core.loss.focal_loss import FocalLoss
 
 
-class InterTrainer(object):
+class SegTrainer(object):
     def __init__(
             self,
             model: interModel,
@@ -136,7 +136,7 @@ class InterTrainer(object):
         self.sched.step()
 
     def validation(self, epoch):
-        val_metrics = {'thresholds': [0.3, 0.35, 0.4, 0.45, 0.5], 'data': {}}
+        val_metrics = {'thresholds': [0.45, 0.5], 'data': {}}
         self.model.eval()
         for i, batch_data in enumerate(self.val_data):
             global_step = i
@@ -170,30 +170,16 @@ class InterTrainer(object):
 
         if self.is_master:
             thresholds = val_metrics['thresholds']
-            normal_cases_nr10 = [0 for _ in range(len(thresholds))]
-            normal_cases_nr20 = [0 for _ in range(len(thresholds))]
-            mae = [0 for _ in range(len(thresholds))]
-            mse = [0 for _ in range(len(thresholds))]
-            mdev = [0 for _ in range(len(thresholds))]
+            miou = [0 for _ in range(len(thresholds))]
             for image_name in val_metrics['data']:
                 for i, threshold in enumerate(thresholds):
-                    metric, n_pred, n_gt = val_metrics['data'][image_name][threshold]
-                    mae[i] += abs(n_pred - n_gt)
-                    mse[i] += (n_pred - n_gt)**2
-                    mdev[i] += abs(metric - 1.0)
-                    if abs(metric - 1.0) <= 0.1:
-                        normal_cases_nr10[i] += 1
-                    if abs(metric - 1.0) <= 0.2:
-                        normal_cases_nr20[i] += 1
+                    metric = val_metrics['data'][image_name][threshold]
+                    miou[i] += metric
 
             report = val_metrics['report'] = {}
             report['total_cases'] = num_cases = len(val_metrics['data'])
             report['metrics'] = {
-                'Ratio@Dev10': [val / num_cases for val in normal_cases_nr10],
-                'Ratio@Dev20': [val / num_cases for val in normal_cases_nr20],
-                'MDEV': [val / num_cases for val in mdev],
-                'MAE': [val / num_cases for val in mae],
-                'MSE': [math.sqrt(val / num_cases) for val in mse],
+                'mIoU': [val / num_cases for val in miou],
             } if num_cases > 0 else {}
 
             now = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
@@ -244,38 +230,41 @@ class InterTrainer(object):
         for masks, preds, coords, names in \
             zip(batch_masks, batch_preds, batch_coords, batch_names):
             for i, name in enumerate(names):
-                num_gt = int(coords[i])
                 pred = preds[i][1]
                 pred = pred.cpu().numpy()
 
+                mask = masks[i]
+                mask = mask.cpu().numpy()
+
                 metrics[name] = {}
                 for thr in thresholds:
-                    mask = (pred > thr).astype(np.int8)
-
-                    # Label connected components
-                    mask_cc, num_cc = label(mask)
-
-                    # Find the center of mass (centroid) of each component
-                    # centroids = center_of_mass(mask, mask_cc, range(1, num_cc + 1))
-
-                    # Calculate the size of each component
-                    sizes = np.bincount(mask_cc.ravel())[1:]  # skip the background
-                    median_size = np.median(sizes)
-                    for size in sizes:
-                        if size >= median_size:
-                            num_cc += (size / median_size - 1)
-
-                    metric = num_cc / max(1, num_gt)
-                    metrics[name][thr] = (metric, round(num_cc), num_gt)
-
-                # pred_img = convert_tensor_to_image(pred, dtype=np.float32)
-                # metrics[name] = {}
-                # for thr in thresholds:
-                #     num_pred = int(get_num_connected_component(pred_img > thr, 1))
-                #     metric = num_pred / max(1, num_gt)
-                #     metrics[name][thr] = (metric, num_pred, num_gt)
+                    segm = (pred > thr).astype(np.int8)
+                    metric = self.calculate_iou(segm, mask)
+                    metrics[name][thr] = (metric)
 
         return metrics
+
+
+    def calculate_iou(self, mask1, mask2):
+        """
+        Calculate the Intersection over Union (IoU) of two binary masks.
+        
+        Parameters:
+        mask1 (numpy array): A 2D binary mask.
+        mask2 (numpy array): A 2D binary mask.
+        
+        Returns:
+        float: The IoU of the two binary masks.
+        """
+        
+        # Calculate the intersection and union
+        intersection = np.logical_and(mask1, mask2).sum()
+        union = np.logical_or(mask1, mask2).sum()
+        
+        # Calculate the IoU
+        iou = intersection / union if union > 0 else 0
+        
+        return iou
 
     def save_visualization(
         self, 
@@ -283,7 +272,7 @@ class InterTrainer(object):
         output: Dict, 
         global_step, 
         prefix,
-        threshold=0.30,
+        threshold=0.49,
     ) -> None:
         output_images_path = self.cfg.VIS_PATH / prefix
         if not output_images_path.exists():

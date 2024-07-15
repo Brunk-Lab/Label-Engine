@@ -52,6 +52,8 @@ def parse_args():
     parser.add_argument('--weights', type=str, default=None,
                         help='Model weights will be loaded from the specified path if you use this argument.')
 
+    # parser.add_argument('--mode', choice=['train', 'infer'], type=str, default='train')
+
     return parser.parse_args()
 
 

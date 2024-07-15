@@ -1,6 +1,6 @@
 from core.utils.exp_imports.default import *
 
-MODEL_NAME = 'inter_unet_2048x2448_ecDNA'
+MODEL_NAME = 'inter_unet_2048x2448_roi'
 
 
 def main(cfg: Dict) -> None:
@@ -63,7 +63,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         max_num_merged_objects=2
     )
 
-    trainset = ecDNADataset(
+    trainset = ROIDataset(
         dataset_path=cfg.ECDNA_PATH,
         split='train',
         augmentator=train_augmentator,
@@ -73,7 +73,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         date='0702_2024',
     )
 
-    valset = ecDNADataset(
+    valset = ROIDataset(
         dataset_path=cfg.ECDNA_PATH,
         split='val',
         augmentator=val_augmentator,
@@ -87,7 +87,7 @@ def train(model: interUNet, cfg: Dict) -> None:
     optimizer_params = {'name':'adam', 'lr':5e-5, 'betas':(0.9, 0.999), 'eps':1e-8}
     scheduler_params = {'name':'MultiStepLR', 'milestones':[1000, 1500], 'gamma':0.2}
 
-    trainer = InterTrainer(
+    trainer = SegTrainer(
         model,
         cfg,
         trainset,
@@ -96,8 +96,8 @@ def train(model: interUNet, cfg: Dict) -> None:
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
         image_dump_interval=1000,
-        checkpoint_interval=10,
-        validation_interval=10,
+        checkpoint_interval=50,
+        validation_interval=50,
         seed=cfg.seed,
     )
-    trainer.run(num_epochs=1, validation=True)
+    trainer.run(num_epochs=2001, validation=True)
