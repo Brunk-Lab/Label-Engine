@@ -93,7 +93,7 @@ class SegTrainer(object):
             logger.info(f'Total Epochs: {num_epochs}')
 
         for epoch in range(start_epoch, num_epochs):
-            self.training(epoch)
+            # self.training(epoch)
             if validation and epoch % self.validation_interval == 0:
                 self.validation(epoch)
 

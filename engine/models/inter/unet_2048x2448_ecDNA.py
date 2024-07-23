@@ -95,7 +95,7 @@ def train(model: interUNet, cfg: Dict) -> None:
         loss_func_params=loss_func_params,
         optimizer_params=optimizer_params,
         scheduler_params=scheduler_params,
-        image_dump_interval=1000,
+        image_dump_interval=1,
         checkpoint_interval=10,
         validation_interval=10,
         seed=cfg.seed,

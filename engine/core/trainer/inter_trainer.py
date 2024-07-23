@@ -93,7 +93,7 @@ class InterTrainer(object):
             logger.info(f'Total Epochs: {num_epochs}')
 
         for epoch in range(start_epoch, num_epochs):
-            self.training(epoch)
+            # self.training(epoch)
             if validation and epoch % self.validation_interval == 0:
                 self.validation(epoch)
 
@@ -283,7 +283,7 @@ class InterTrainer(object):
         output: Dict, 
         global_step, 
         prefix,
-        threshold=0.30,
+        threshold=0.40,
     ) -> None:
         output_images_path = self.cfg.VIS_PATH / prefix
         if not output_images_path.exists():
@@ -314,7 +314,8 @@ class InterTrainer(object):
         gt_mask = draw_probmap(gt_mask, norm=True)
         pred_map = draw_probmap(pred_prob, norm=True)
         pred_mask = draw_probmap(pred_prob >= threshold, norm=True)
-        viz_image = np.hstack((image_w_pts, gt_mask, pred_map, pred_mask)).astype(np.uint8)
+        # viz_image = np.hstack((image_w_pts, gt_mask, pred_map, pred_mask)).astype(np.uint8)
+        viz_image = (pred_mask).astype(np.uint8)
 
         def _save_image(suffix, image):
             cv2.imwrite(str(output_images_path / f'{image_name_prefix}_{suffix}.png'),
