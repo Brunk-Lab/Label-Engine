@@ -1,0 +1,5 @@
+matplotlib==3.8.3
+easydict==1.13
+tensorboard==2.16.2
+albumentations==1.4.2
+SimpleITK==2.1.1.2
