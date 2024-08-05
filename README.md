@@ -19,4 +19,11 @@ conda install pytorch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 pytorch-cuda=
 pip install -r requirements.txt
 ```
 ## Getting Started
+First download weights and dataset, and then set the data path ``ECDNA_PATH`` in ``config.yml`` and the model path in ``run_inter_infer.sh``. Then run this script.
+```
+./run_inter_infer.sh
+```
+
+
+
 
